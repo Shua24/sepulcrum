@@ -65,16 +65,24 @@ fi
 
 # 3. Commit. A flake only sees tracked files, so an uncommitted module is
 #    invisible to the build and silently does nothing.
+#
+# The identity is written into the TARGET repo's LOCAL config rather than passed
+# per-command. Under sudo, git does not read the invoking user's ~/.gitconfig, so
+# a bare `git commit` fails with "Please tell me who you are" even though the
+# human running this has their identity configured. Setting it locally makes
+# every commit in this repo work no matter which user runs the script, and it
+# only affects the throwaway deploy target.
 echo "==> committing in $TARGET"
 if [ ! -d "$TARGET/.git" ]; then
   git -C "$TARGET" init -q
 fi
+git -C "$TARGET" config user.name "nixos-deploy"
+git -C "$TARGET" config user.email "deploy@localhost"
 git -C "$TARGET" add -A
 if git -C "$TARGET" rev-parse HEAD > /dev/null 2>&1; then
   git -C "$TARGET" commit -q -m "deploy $STAMP" || echo "    (nothing new to commit)"
 else
-  git -C "$TARGET" -c user.name=nixos -c user.email=root@localhost \
-    commit -q -m "deploy $STAMP"
+  git -C "$TARGET" commit -q -m "deploy $STAMP"
 fi
 
 # 4. Resolve inputs if the lock is missing.
