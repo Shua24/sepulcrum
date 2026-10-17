@@ -50,24 +50,21 @@ fi
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
 
-# 1. Back up /etc/nixos once per invocation so a bad deploy is recoverable.
-BACKUP="${TARGET}.backup-$STAMP"
-echo "==> backing up $TARGET to $BACKUP"
-cp -a "$TARGET" "$BACKUP"
+# No backups. NixOS generations are the rollback mechanism: every successful
+# switch creates one, Limine offers them at boot, and `nixos-rebuild --rollback`
+# returns to the previous one. A copy of the config tree in /etc adds nothing on
+# top of that and accumulates one stale directory per deploy.
 
-# 2. Sync the tree. hardware-configuration.nix is taken from the live machine
-#    when present, because the generated one carries the real UUIDs.
+# 1. Sync the tree. hardware-configuration.nix is deliberately left alone - the
+#    live generated one carries this machine's real UUIDs and is the truth.
 echo "==> syncing repo into $TARGET"
 cp "$REPO_DIR/flake.nix" "$TARGET/flake.nix"
 cp "$REPO_DIR/configuration.nix" "$TARGET/configuration.nix"
 # NOTES.md stays in the repo. /etc/nixos holds only what the build needs.
 rm -rf "$TARGET/modules"
 cp -a "$REPO_DIR/modules" "$TARGET/modules"
-# hardware-configuration.nix is intentionally NOT copied: the live one already in
-# $TARGET is the truth (real UUIDs for this machine). It was backed up above.
-if [ -f "$BACKUP/hardware-configuration.nix" ]; then
-  cp "$BACKUP/hardware-configuration.nix" "$TARGET/hardware-configuration.nix"
-fi
+# hardware-configuration.nix is never touched: the generated one already in
+# $TARGET carries this machine's real UUIDs and is not in the repo at all.
 
 # 3. Resolve inputs if the lock is missing.
 #
@@ -95,7 +92,9 @@ echo "==> nixos-rebuild build"
 nixos-rebuild build --flake "$FLAKE_REF"
 
 echo
-echo "Build succeeded. Previous config: $BACKUP"
+echo "Build succeeded. Nothing is active yet."
+echo "Rollback is via generations: pick an older entry in the Limine menu, or"
+echo "  sudo nixos-rebuild --rollback switch"
 if [ "$MODE" = switch ]; then
   echo "==> activating"
   nixos-rebuild switch --flake "$FLAKE_REF"

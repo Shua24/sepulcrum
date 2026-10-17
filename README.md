@@ -38,7 +38,11 @@ This repo is the source of truth. `/etc/nixos` is a deploy target.
 ./deploy.sh --switch   # build and activate
 ```
 
-The first run backs up `/etc/nixos` to `/etc/nixos.backup-<timestamp>`.
+Rollback is handled by **generations**, not by copying config trees: every
+`--switch` creates a generation, Limine lists them at boot, and
+`sudo nixos-rebuild --rollback switch` returns to the previous one. `deploy.sh`
+keeps no backups of `/etc/nixos` — the config lives in git and the built systems
+live in the store.
 
 ## Rebuild by hand
 
