@@ -20,9 +20,15 @@ SKIP_ROOT_CHECK="${DEPLOY_SKIP_ROOT_CHECK:-0}"
 
 for argument in "$@"; do
   case "$argument" in
-    --switch) MODE=switch ;;
-    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
-    *) echo "unknown argument: $argument" >&2; exit 2 ;;
+  --switch) MODE=switch ;;
+  -h | --help)
+    sed -n '2,12p' "$0"
+    exit 0
+    ;;
+  *)
+    echo "unknown argument: $argument" >&2
+    exit 2
+    ;;
   esac
 done
 
@@ -54,7 +60,7 @@ cp -a "$TARGET" "$BACKUP"
 echo "==> syncing repo into $TARGET"
 cp "$REPO_DIR/flake.nix" "$TARGET/flake.nix"
 cp "$REPO_DIR/configuration.nix" "$TARGET/configuration.nix"
-cp "$REPO_DIR/NOTES.md" "$TARGET/NOTES.md"
+# NOTES.md stays in the repo. /etc/nixos holds only what the build needs.
 rm -rf "$TARGET/modules"
 cp -a "$REPO_DIR/modules" "$TARGET/modules"
 # hardware-configuration.nix is intentionally NOT copied: the live one already in
@@ -71,7 +77,7 @@ fi
 # sudo, where git does not read the invoking user's ~/.gitconfig.
 if [ ! -f "$TARGET/flake.lock" ]; then
   echo "==> resolving flake inputs"
-  nix flake metadata "path:$TARGET" > /dev/null
+  nix flake metadata "path:$TARGET" >/dev/null
 fi
 
 # 5. Build.
