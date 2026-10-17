@@ -5,6 +5,13 @@
   networking.hostName = "sepulcrum";
   networking.networkmanager.enable = true;
   time.timeZone = "Asia/Jakarta";
+  # EDITOR is set here rather than via programs.*.defaultEditor, which uses
+  # mkOverride 900 and would silently beat any later assignment. VISUAL is set
+  # too: many tools read it first and only fall back to EDITOR.
+  environment.variables = {
+    EDITOR = "nvim";
+    VISUAL = "nvim";
+  };
 
   i18n.defaultLocale = "en_GB.UTF-8";
   i18n.extraLocaleSettings = {

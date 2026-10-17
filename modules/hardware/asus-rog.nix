@@ -9,7 +9,7 @@
   # This option is declared by nixos-hardware's asus/battery.nix, which the
   # g513im module imports - it is not a NixOS core option.
   hardware.asus.battery = {
-    chargeUpto = 80;
+    chargeUpto = 60;
     enableChargeUptoScript = true;
   };
 }

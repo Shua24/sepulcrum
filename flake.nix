@@ -1,5 +1,5 @@
 {
-  description = "sepulcrum - ASUS ROG Strix G513RM on NixOS unstable";
+  description = "sepulcrum - NixOS unstable";
 
   inputs = {
     # Floating by decision: flake.lock pins whatever nixos-unstable was at the

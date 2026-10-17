@@ -1,28 +1,66 @@
-# sepulcrum
+# Sepulcrum
 
-NixOS configuration for **sepulcrum**, an ASUS ROG Strix G513RM (Radeon 680M +
-RTX 3060, AMD Ryzen 6000). NixOS `nixos-unstable`, consumed as a flake input.
+NixOS configuration for **sepulcrum** at NixOS `nixos-unstable`,consumed as a
+flake input.
 
-Migrated from CachyOS on 2026-10-17 and then split into modules. The split was
+This configuration is split into modules. The split was
 verified to be behaviour-neutral: the modular tree evaluates to a byte-identical
 derivation to the original single file, and `nixos-rebuild build` produces a
 system whose kernel, initrd, systemd, binary count and enabled-unit set all match
-the live machine.
+the current live machine.
+
+## Critical Notes
+
+In case the hardware changes, there are some things that can be marked as
+stale or obsolete. Those things are:
+
+- `./modules/hardware/asus-rog.nix` (specific to ASUS ROG laptops)
+- `./modules/hardware/nvidia.nix` (So far I'm planning to move out to fully use AMD)
+once I have the resources needed.
+- `./modules/hardware/platform.nix` (Strictly in case some hardware require different
+modules)
 
 ## Layout
 
 ```
-flake.nix                 inputs + nixosConfigurations.sepulcrum
-configuration.nix         thin aggregator: import list + stateVersion
-hardware-configuration.nix  GENERATED - owns fileSystems, initrd, microcode
+flake.nix                   inputs + nixosConfigurations.sepulcrum
+
+configuration.nix           thin aggregator: import list + stateVersion
+
+hardware-configuration.nix  Generated via nixos-generate-config if
+                            post-install owns fileSystems, initrd,
+                            microcode
+
 modules/
-  core/                   identity, users, boot, nix
-  hardware/               graphics, nvidia, asus-rog
-  desktop/                sessions, fonts, input-method
-  services/               audio, system-services, security, virtualisation
-  programs/               programs, gaming
-  packages/               default.nix aggregator + 15 group files
+  core/                     identity, users, boot, nix
+
+  hardware/                 graphics, nvidia, asus-rog
+
+  desktop/                  sessions, fonts, input-method
+
+  services/                 audio, system-services, security, virtualisation
+
+  programs/                 programs, gaming
+
+  packages/                 default.nix aggregator + 15 group files
 ```
+
+## Setup
+
+Here's a way to set the system up for installing. Keep in mind that it's not
+the configuration recommended by the installer. My math are as follows:
+
+```
+/boot       around 1 GB in size, absolute
+/           around 50 GB per 1TB of total space
+/nix        around 150 GB per 1TB of total space
+/home       The rest of the remaining space
+```
+
+Note that swap is handed into `zram` instead, so no swap needed. For *moar swap baby*
+just increase swap. It's a brand new Linux + zram feature.
+
+## How It Works
 
 `configuration.nix` is a thin aggregator on purpose: `flake.nix` imports it and
 passes `nixos-hardware` through `specialArgs`, so `nixos-rebuild --flake` works
@@ -36,6 +74,13 @@ This repo is the source of truth. `/etc/nixos` is a deploy target.
 ```bash
 ./deploy.sh            # build only, nothing activates
 ./deploy.sh --switch   # build and activate
+```
+
+In case executing the bash shell directly fails, use these:
+
+```bash
+sudo bash deploy.sh             # build only
+sudo bash deploy.sh --switch    # Build and activate
 ```
 
 Rollback is handled by **generations**, not by copying config trees: every

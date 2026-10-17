@@ -75,6 +75,7 @@ in
     ./modules/services/system-services.nix
     ./modules/services/security.nix
     ./modules/services/virtualisation.nix
+    ./modules/services/accessability.nix
 
     # --- programs
     ./modules/programs/programs.nix
