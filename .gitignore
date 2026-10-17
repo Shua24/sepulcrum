@@ -4,6 +4,11 @@
 # Deploy target artifacts that must never come back from /etc/nixos
 /etc-nixos.backup-*
 
+# Generated per machine by nixos-generate-config. Carries real partition
+# UUIDs, so it must never be committed. deploy.sh places the live one in
+# /etc/nixos and configuration.nix imports it conditionally.
+hardware-configuration.nix
+
 # Editor and OS noise
 *.swp
 *~

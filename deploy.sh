@@ -27,6 +27,17 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
+# This repo deliberately does NOT contain hardware-configuration.nix (it carries
+# the machine's partition UUIDs). Without one the build produces a system with
+# no fileSystems and will not boot, so refuse rather than ship that.
+if [ ! -f "$TARGET/hardware-configuration.nix" ]; then
+  echo "error: $TARGET/hardware-configuration.nix is missing." >&2
+  echo "       That file is generated per machine and is not in this repo." >&2
+  echo "       On an installed system it should already exist. If not, run:" >&2
+  echo "         sudo nixos-generate-config" >&2
+  exit 1
+fi
+
 STAMP="$(date +%Y%m%d-%H%M%S)"
 
 # 1. Back up /etc/nixos once per invocation so a bad deploy is recoverable.
@@ -42,10 +53,10 @@ cp "$REPO_DIR/configuration.nix" "$TARGET/configuration.nix"
 cp "$REPO_DIR/NOTES.md" "$TARGET/NOTES.md"
 rm -rf "$TARGET/modules"
 cp -a "$REPO_DIR/modules" "$TARGET/modules"
+# hardware-configuration.nix is intentionally NOT copied: the live one already in
+# $TARGET is the truth (real UUIDs for this machine). It was backed up above.
 if [ -f "$BACKUP/hardware-configuration.nix" ]; then
   cp "$BACKUP/hardware-configuration.nix" "$TARGET/hardware-configuration.nix"
-else
-  cp "$REPO_DIR/hardware-configuration.nix" "$TARGET/hardware-configuration.nix"
 fi
 
 # 3. Commit. A flake only sees tracked files, so an uncommitted module is
@@ -65,20 +76,30 @@ fi
 # 4. Resolve inputs if the lock is missing.
 if [ ! -f "$TARGET/flake.lock" ]; then
   echo "==> resolving flake inputs"
-  nix flake metadata --flake "$TARGET#sepulcrum" > /dev/null
+  nix flake metadata --flake "path:$TARGET#sepulcrum" > /dev/null
   git -C "$TARGET" add flake.lock
   git -C "$TARGET" commit -q -m "pin flake inputs"
 fi
 
 # 5. Build.
+#
+# `path:$TARGET` rather than `$TARGET` is deliberate and load-bearing. A plain
+# path reference to a git repo copies only TRACKED files, and
+# hardware-configuration.nix is gitignored on purpose (it carries this machine's
+# partition UUIDs). Under the git form the file is invisible, the conditional
+# import in configuration.nix evaluates to nothing, and the build dies with
+# "The 'fileSystems' option does not specify your root file system".
+# `path:` reads the directory directly, so the generated file is seen and the
+# rest of the tree still comes from the same checkout.
+FLAKE_REF="path:$TARGET#sepulcrum"
 echo "==> nixos-rebuild build"
-nixos-rebuild build --flake "$TARGET#sepulcrum"
+nixos-rebuild build --flake "$FLAKE_REF"
 
 echo
 echo "Build succeeded. Previous config: $BACKUP"
 if [ "$MODE" = switch ]; then
   echo "==> activating"
-  nixos-rebuild switch --flake "$TARGET#sepulcrum"
+  nixos-rebuild switch --flake "$FLAKE_REF"
 else
-  echo "Activate with:  sudo nixos-rebuild switch --flake $TARGET#sepulcrum"
+  echo "Activate with:  sudo nixos-rebuild switch --flake $FLAKE_REF"
 fi

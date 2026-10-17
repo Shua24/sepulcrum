@@ -71,7 +71,35 @@ putting the module list in `flake.nix`. It means plain `nixos-rebuild switch`
 (no flake) still works as a fallback, using the pinned `fetchTarball` branch
 inside `configuration.nix`.
 
-## Things that will bite you
+## Hardware: what is in the repo and what is not
+
+Only the **partition layout** is machine-specific, so only that stays in the
+generated file. Everything else about the hardware is ordinary configuration and
+lives here.
+
+| `modules/hardware/platform.nix` (repo) | `hardware-configuration.nix` (generated) |
+|---|---|
+| `boot.initrd.availableKernelModules` | `fileSystems.*` (real UUIDs) |
+| `boot.kernelModules` (`kvm-amd`) | `swapDevices` |
+| `hardware.cpu.amd.updateMicrocode` | |
+| `nixpkgs.hostPlatform` | |
+
+`hardware-configuration.nix` is gitignored and never committed. It is imported
+conditionally, so a clone without it still parses; it just cannot produce a
+bootable system, because NixOS asserts a root filesystem exists.
+
+Verified both ways against nixpkgs `55bfb4d7`:
+
+- repo `platform.nix` + a partitions-only hardware file -> `ygfjxq2m3clw03a19gzqdpyx0pqgwpjb`
+- repo `platform.nix` + the full generated file -> **the same** `ygfjxq2m…`
+
+The second case is what actually happens on this machine: both files define the
+initrd list, microcode and `hostPlatform`. Lists merge, the scalars are
+`mkDefault` in both so the definitions agree instead of conflicting, and
+duplicate module names collapse — the resulting
+`boot.initrd.availableKernelModules` contains no repeats.
+
+## Read this before editing
 
 **A flake only sees git-tracked files.** In a git repo, an untracked `flake.nix`
 is a hard error and an untracked `modules/` is *invisible* — Nix tells you to
@@ -80,9 +108,29 @@ is a hard error and an untracked `modules/` is *invisible* — Nix tells you to
 would rather not deal with that, `nixos-rebuild --flake path:/etc/nixos#sepulcrum`
 reads the directory directly and ignores git.
 
-**`hardware-configuration.nix` owns `fileSystems`.** Do not define `fileSystems`
-anywhere in `modules/`. Two plain definitions of the same mount is a hard
-conflicting-definition error. This file is generated and is committed as-is.
+**`hardware-configuration.nix` owns `fileSystems` — and is NOT committed.** It
+is generated per machine and carries real partition UUIDs, so it is gitignored.
+Do not define `fileSystems` anywhere in `modules/`: a second plain definition of
+the same mount is a hard conflicting-definition error, and a stale committed copy
+of this file is what caused exactly that during the original install.
+
+Only the partition layout stays in it. Drivers, initrd modules, microcode and
+`hostPlatform` are ordinary configuration and live in
+`modules/hardware/platform.nix`. Verified that this split reproduces the same
+derivation, and that a full generated file coexists with `platform.nix` without
+conflict (lists merge, scalars are `mkDefault` in both, duplicate module names
+collapse).
+
+A fresh machine needs `nixos-generate-config --root /mnt` before deploying;
+`deploy.sh` refuses to run without a hardware file rather than building a system
+with no root filesystem.
+
+**Use `path:` for the flake reference when building locally.** A plain path to a
+git repo copies only *tracked* files, and `hardware-configuration.nix` is
+gitignored — so under the git form it is invisible, the conditional import
+vanishes, and the build dies with *"The 'fileSystems' option does not specify
+your root file system"*. `deploy.sh` uses `path:$TARGET#sepulcrum` for this
+reason. Do not "simplify" it back to `$TARGET#sepulcrum`.
 
 **The ESP has no label.** `/`, `/nix` and `/home` carry labels (`nixos-root`,
 `nixos-nix`, `nixos-home`) and are whole partitions — there are no btrfs

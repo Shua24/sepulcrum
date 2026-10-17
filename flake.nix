@@ -19,9 +19,12 @@
   outputs = { self, nixpkgs, nixos-hardware, ... }@inputs: {
     nixosConfigurations.sepulcrum = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
-      # configuration.nix reads this argument and falls back to a pinned
-      # fetchTarball when it is absent (the non-flake rebuild path).
+      # configuration.nix reads nixos-hardware from here and falls back to a
+      # pinned fetchTarball when it is absent (the non-flake rebuild path).
       specialArgs = { inherit nixos-hardware; };
+      # configuration.nix conditionally imports ./hardware-configuration.nix
+      # when it exists. That file is generated per machine, carries the real
+      # partition UUIDs, and is NOT in this repository.
       modules = [ ./configuration.nix ];
     };
   };
