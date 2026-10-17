@@ -63,34 +63,15 @@ if [ -f "$BACKUP/hardware-configuration.nix" ]; then
   cp "$BACKUP/hardware-configuration.nix" "$TARGET/hardware-configuration.nix"
 fi
 
-# 3. Commit. A flake only sees tracked files, so an uncommitted module is
-#    invisible to the build and silently does nothing.
+# 3. Resolve inputs if the lock is missing.
 #
-# The identity is written into the TARGET repo's LOCAL config rather than passed
-# per-command. Under sudo, git does not read the invoking user's ~/.gitconfig, so
-# a bare `git commit` fails with "Please tell me who you are" even though the
-# human running this has their identity configured. Setting it locally makes
-# every commit in this repo work no matter which user runs the script, and it
-# only affects the throwaway deploy target.
-echo "==> committing in $TARGET"
-if [ ! -d "$TARGET/.git" ]; then
-  git -C "$TARGET" init -q
-fi
-git -C "$TARGET" config user.name "nixos-deploy"
-git -C "$TARGET" config user.email "deploy@localhost"
-git -C "$TARGET" add -A
-if git -C "$TARGET" rev-parse HEAD > /dev/null 2>&1; then
-  git -C "$TARGET" commit -q -m "deploy $STAMP" || echo "    (nothing new to commit)"
-else
-  git -C "$TARGET" commit -q -m "deploy $STAMP"
-fi
-
-# 4. Resolve inputs if the lock is missing.
+# There is deliberately NO git in this script. Building with `path:$TARGET`
+# (step 4) makes the flake read the directory directly, so the target needs no
+# repository, no commits and no identity. That is what keeps this working under
+# sudo, where git does not read the invoking user's ~/.gitconfig.
 if [ ! -f "$TARGET/flake.lock" ]; then
   echo "==> resolving flake inputs"
   nix flake metadata "path:$TARGET" > /dev/null
-  git -C "$TARGET" add flake.lock
-  git -C "$TARGET" commit -q -m "pin flake inputs"
 fi
 
 # 5. Build.
