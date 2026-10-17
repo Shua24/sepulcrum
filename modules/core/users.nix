@@ -21,4 +21,6 @@
     ];
   };
   security.sudo.wheelNeedsPassword = true;
+
+  environment.shells = [ pkgs.yash ];
 }
