@@ -1,0 +1,12 @@
+# A flake cannot see untracked files, so anything here is INVISIBLE to the
+# build. Keep this list nearly empty on purpose.
+
+# Deploy target artifacts that must never come back from /etc/nixos
+/etc-nixos.backup-*
+
+# Editor and OS noise
+*.swp
+*~
+.DS_Store
+result
+result-*
