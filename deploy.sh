@@ -11,8 +11,12 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET=/etc/nixos
+# Overridable so the script can be rehearsed against a scratch copy without
+# touching the real /etc/nixos.
+TARGET="${DEPLOY_TARGET:-/etc/nixos}"
 MODE=build
+# Set DEPLOY_SKIP_ROOT_CHECK=1 to rehearse as a normal user.
+SKIP_ROOT_CHECK="${DEPLOY_SKIP_ROOT_CHECK:-0}"
 
 for argument in "$@"; do
   case "$argument" in
@@ -22,7 +26,7 @@ for argument in "$@"; do
   esac
 done
 
-if [ "$(id -u)" -ne 0 ]; then
+if [ "$SKIP_ROOT_CHECK" != 1 ] && [ "$(id -u)" -ne 0 ]; then
   echo "error: run this with sudo - it writes $TARGET" >&2
   exit 1
 fi
@@ -41,7 +45,7 @@ fi
 STAMP="$(date +%Y%m%d-%H%M%S)"
 
 # 1. Back up /etc/nixos once per invocation so a bad deploy is recoverable.
-BACKUP="/etc/nixos.backup-$STAMP"
+BACKUP="${TARGET}.backup-$STAMP"
 echo "==> backing up $TARGET to $BACKUP"
 cp -a "$TARGET" "$BACKUP"
 
@@ -76,7 +80,7 @@ fi
 # 4. Resolve inputs if the lock is missing.
 if [ ! -f "$TARGET/flake.lock" ]; then
   echo "==> resolving flake inputs"
-  nix flake metadata --flake "path:$TARGET#sepulcrum" > /dev/null
+  nix flake metadata "path:$TARGET" > /dev/null
   git -C "$TARGET" add flake.lock
   git -C "$TARGET" commit -q -m "pin flake inputs"
 fi
