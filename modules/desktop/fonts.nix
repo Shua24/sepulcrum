@@ -14,11 +14,17 @@ let
     iosevka
     symbols-only
   ];
+
+  # Your own font: the Iosevka fork built from source by the derivation next to
+  # this module. It pins the fork's commit plus the source and npm-dependency
+  # hashes, so every rebuild reproduces the same TTFs.
+  innocephscaAlpha = pkgs.callPackage ./innocephsca-alpha.nix { };
 in
 {
   fonts = {
     enableDefaultPackages = true;
     packages = with pkgs; [
+      innocephscaAlpha
       noto-fonts
       noto-fonts-cjk-sans
       noto-fonts-color-emoji
@@ -32,7 +38,10 @@ in
     fontconfig = {
       enable = true;
       defaultFonts = {
-        monospace = [ "JetBrainsMono Nerd Font" "MapleMono NF" "Noto Sans Mono" ];
+        # Innocephsca Alpha leads: it is the font this system renders
+        # monospaced text with (kitty names it directly). The others stay as
+        # fallbacks for glyphs it does not carry.
+        monospace = [ "Innocephsca Alpha" "JetBrainsMono Nerd Font" "MapleMono NF" "Noto Sans Mono" ];
         sansSerif = [ "Poppins" "Noto Sans" ];
         serif = [ "Noto Serif" ];
         emoji = [ "Noto Color Emoji" ];

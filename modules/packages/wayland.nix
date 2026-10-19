@@ -54,5 +54,23 @@ with pkgs; [
     xsel
     libsfdo
     picom
-  
+
+    # --- wallpaper daemon (awww, formerly swww)
+    #
+    # There is NO `services.awww` NixOS option. Verified against the pinned
+    # nixpkgs revision: `grep -rln awww $NIXPKGS/nixos/modules` returns nothing,
+    # and importing a module that defines it fails evaluation outright with
+    #   error: The option `services.awww' does not exist.
+    # So the package only goes on PATH; the compositor owns the daemon.
+    #
+    # niri already does that: ~/.config/niri/config.kdl has
+    #   spawn-at-startup "awww-daemon"
+    # and ~/.config/niri/scripts/switcher.sh drives it with
+    #   awww img <file> --transition-type random --transition-duration 5
+    #
+    # Do NOT add a systemd user unit for awww-daemon on top of that: a second
+    # daemon cannot take the same socket, and with Restart=always it would loop.
+    # If a session ever stops spawning it itself, add the unit elsewhere AND
+    # delete the spawn-at-startup line, not both.
+    awww
 ]
