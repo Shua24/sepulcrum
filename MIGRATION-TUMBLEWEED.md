@@ -423,9 +423,39 @@ need asusd.** Measured on this machine:
 That is the ASUS WMI driver exposing the charge limit directly — and 60 is
 already the value `hardware.asus.battery.chargeUpto` set. A one-line systemd
 unit (or udev rule) writing 60 there reproduces it with no third-party repo at
-all. What asusctl uniquely adds is fan curves, keyboard RGB and profile
-switching; the charge limit is not the reason to keep it. `acpi_call` is not
-needed either way.
+all. `acpi_call` is not needed either way.
+
+**But dropping asusd means dropping ROGCC too — they are not separable.** In
+`rog-control-center/src/main.rs` the GUI opens asusd's platform proxy on the
+system bus and reads the daemon's version, with that call `.unwrap()`ed:
+
+    let platform_proxy = rog_dbus::zbus_platform::PlatformProxyBlocking::new(&zbus_con)?;
+    let asusd_version = platform_proxy.version()
+        .map_err(|e| { println!("Could not get asusd version: {e:?}\nIs asusd.service running?"); })
+        .unwrap();
+
+With no asusd that prints *"Is asusd.service running?"* and exits; it also
+refuses to run when the GUI and daemon versions differ. Packaging agrees: AOSC's
+`rog-control-center` declares `Depends: asusctl`.
+
+**What you keep without asusd, measured on this machine** — the kernel driver
+exposes most of it as plain sysfs:
+
+| Capability | Interface present now | asusd needed? |
+|---|---|---|
+| Battery charge limit | `/sys/class/power_supply/BAT0/charge_control_end_threshold` (= 60) | no |
+| Platform profile | `/sys/firmware/acpi/platform_profile` (`performance`; choices `quiet balanced performance`) | no |
+| Custom fan curves | `/sys/devices/platform/asus-nb-wmi/hwmon/hwmon9` (`asus_custom_fan_curve`, 8 points per fan) | no, but no UI either |
+| Fan readings / PWM mode | `hwmon8` (`fan1_input`, `fan2_input`, `pwm1_enable`) | no |
+| GPU MUX mode | `/sys/devices/platform/asus-nb-wmi/gpu_mux_mode` (and `supergfxctl`, packaged) | no |
+| CPU/APU power limits | `ppt_pl1_spl`, `ppt_pl2_sppt`, `ppt_apu_sppt`, `ppt_fppt` | no |
+| Keyboard backlight brightness | `/sys/class/leds/asus::kbd_backlight` | no |
+| Per-key RGB / Aura modes / AniMatrix | USB-HID, implemented in asusd | **yes** |
+| Tray, notifications, curve editing, profile↔EPP linking | ROGCC / asusd | **yes** |
+
+So the decision is honestly just: *do you want the GUI and per-key RGB?* Yes →
+Tuatara (or OBS) for asusctl + ROGCC. No → `supergfxctl` from the main repo plus
+two or three sysfs lines, and no third-party repository in the chain at all.
 
 **zram.** The flake used zram at 100% of RAM with zstd (matching the old CachyOS
 `zram0` of 15974006784 bytes). Tumbleweed uses `zram-generator`:
