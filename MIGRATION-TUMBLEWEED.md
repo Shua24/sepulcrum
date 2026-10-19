@@ -200,8 +200,9 @@ is not needed off NixOS.
 libva-utils, amdgpu_top, radeontop, cpu-x, supergfxctl,
 `linuxPackages_latest.cpupower -> cpupower`, v4l-utils
 
-Not packaged: `asusctl` → OBS `hardware:asus-linux` (see §6), `vdpauinfo` →
-Packman, `acpi_call` → not needed (charge limit is handled by asusctl/asusd)
+Not packaged: `asusctl` and the ROG Control Center → Tuatara repo, OBS or Copr
+(§6; the charge limit itself needs none of them), `vdpauinfo` →
+Packman, `acpi_call` → not needed
 
 ### media (9)
 `poppler-utils -> poppler-tools`,
@@ -270,9 +271,10 @@ unrar, zip, file, which, psmisc, procps, htop, ncdu, dust, inetutils *(no)*,
 traceroute, mtr, whois, socat, nmap, tcpdump, bind, ksh, bash, fish, zsh
 
 Two removals that matter: **`yash` is not packaged** and it is this flake's
-login shell (`users.users.aulus.shell = pkgs.yash`) — pick another shell or
-build yash. **`net-tools` is gone** (only a dummy package remains); use
-`iproute2`.
+login shell (`users.users.aulus.shell = pkgs.yash`) — but the POSIX-in-practice
+substitutes the user asked for are all in the repo: `ksh` 93vu, `mksh` 59c,
+`dash` 0.5.13.5 (no `oksh`, `pdksh`, `posh` or `loksh`). **`net-tools` is gone**
+(only a dummy package remains); use `iproute2`.
 
 ### theming (3)
 sassc  •  `catppuccin-gtk` and `chicago95` are not packaged — Catppuccin sources
@@ -310,7 +312,7 @@ xbacklight, xkbevd, xkbutils, xcmsdb, smproxy, sessreg, bdftopcf, font-util
 
 | Package | Where it comes from | Cost |
 |---|---|---|
-| `asusctl`, `rog-control-center` | OBS `hardware:asus-linux` | third-party repo to trust |
+| `asusctl`, `asusctl-rog-gui` | Tuatara repo (or OBS `home:RN:asusctl`, or Copr) | third-party repo to trust — but charge limit works without it (§6) |
 | `vdpauinfo` | Packman | extra repo; the NVIDIA driver provides VDPAU anyway |
 | `libdvdcss` | Packman (`libdvdcss2`) | extra repo |
 | `bottles`, `protonup-qt` | Flathub | flatpak + remote to add |
@@ -389,10 +391,41 @@ repo, install userspace, then the kmp. PRIME render offload uses the env-var for
 `switcheroo-control` which is packaged), not a switching script — verify with
 `switcherooctl list`.
 
-**ASUS ROG (G513RM).** `asusctl` + `asusd` + `rog-control-center` come from OBS
-`hardware:asus-linux`; `supergfxctl` is in the main repo. The flake's
-`hardware.asus.battery.chargeUpto = 60` + charge script maps to
-`asusctl battery limit 60`. `acpi_call` is not needed once asusd owns this.
+**ASUS ROG (G513RM).** `asusctl` (with `asusd`) and the GUI (`asusctl-rog-gui`,
+the ROG Control Center) are not in the distro repos. Verified routes, all
+third-party:
+
+| Route | Install | Note |
+|---|---|---|
+| **Tuatara repo** (current upstream-documented route) | `zypper install --plus-repo 'https://repos.fyralabs.com/tuatara-$releasever' tuatara-release` then `zypper in asusctl asusctl-rog-gui` | Tuatara is the openSUSE counterpart of Fedora's Terra repo, Tumbleweed only |
+| OBS `home:RN:asusctl` | addrepo from software.opensuse.org | asusctl 6.3.2 built for Tumbleweed, Slowroll, Leap 16.0 and 15.6 |
+| Copr `lukenukem/asus-linux` (openSUSE build) | repo file from copr | the older asus-linux.org guide route; still listed |
+
+`supergfxctl` is in the **main repo**, but upstream now calls it deprecated and
+advises against installing it unless you need VFIO or cannot power off the dGPU.
+
+Two conflicts to handle that this flake currently has:
+
+- **`asusd` races `power-profiles-daemon`** over `/sys/firmware/acpi/platform_profile`
+  and CPU EPP. This flake enables both (`services.asusd` and
+  `services.power-profiles-daemon`). On Tumbleweed either disable
+  `power-profiles-daemon` or set `change_platform_profile_on_ac: false`,
+  `change_platform_profile_on_battery: false`, `platform_profile_linked_epp: false`
+  in `/etc/asusd/asusd.ron`.
+- openSUSE may install **`suse-prime`**, which conflicts with `supergfxctl` —
+  remove it before installing supergfxctl.
+
+**The de-risking fact: the one thing this flake actually asked asusd for does not
+need asusd.** Measured on this machine:
+
+    /sys/class/power_supply/BAT0/charge_control_end_threshold = 60
+
+That is the ASUS WMI driver exposing the charge limit directly — and 60 is
+already the value `hardware.asus.battery.chargeUpto` set. A one-line systemd
+unit (or udev rule) writing 60 there reproduces it with no third-party repo at
+all. What asusctl uniquely adds is fan curves, keyboard RGB and profile
+switching; the charge limit is not the reason to keep it. `acpi_call` is not
+needed either way.
 
 **zram.** The flake used zram at 100% of RAM with zstd (matching the old CachyOS
 `zram0` of 15974006784 bytes). Tumbleweed uses `zram-generator`:
@@ -418,8 +451,16 @@ labwc, river-classic. Tumbleweed can do all of that; the session files appear in
 
 - `gdm` (default session → Plasma), `plasma6-desktop`, `gnome-shell`,
   `xfce4-session`, `icewm`, `niri`, `labwc` — all packaged
-- **river** and **yarfwm**: build from source. river first (`pkgconfig(river)` is
-  a build dependency of yarfwm), then yarfwm against `wlroots-0_20-devel`
+- **river** and **yarfwm**: both variants of river are packaged for Tumbleweed
+  in the **`X11:Wayland`** devel project on OBS — `river` 0.4.8 (the
+  non-monolithic one yarfwm talks to) and `river-classic` 0.3.17 with
+  `river-classic-riverctl`/`-rivertile` (the monolithic one this flake's
+  `programs.river-classic` starts). Neither is in the distro repos. Everything
+  needed to build river 0.5.0 from source is in the distro anyway — including
+  `zig0.16` 0.16.0, the exact compiler river pins, and `zig-rpm-macros0.16`.
+  Either way, river satisfies yarfwm's build dependency (`pkgconfig(river)` is
+  what yarfwm reads the protocol XML from), then yarfwm builds against
+  `wlroots-0_20-devel` (0.20.2).
 - portals: `xdg-desktop-portal` + `-gtk` + `-gnome` + `-kde` (the flake forced
   gtk+gnome; Plasma needs the kde one too or file pickers misbehave)
 - input method: `fcitx5`, `fcitx5-configtool`, `fcitx5-mozc`, `mozc` — all
