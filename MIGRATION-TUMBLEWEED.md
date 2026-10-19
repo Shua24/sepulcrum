@@ -401,8 +401,26 @@ third-party:
 | OBS `home:RN:asusctl` | addrepo from software.opensuse.org | asusctl 6.3.2 built for Tumbleweed, Slowroll, Leap 16.0 and 15.6 |
 | Copr `lukenukem/asus-linux` (openSUSE build) | repo file from copr | the older asus-linux.org guide route; still listed |
 
-`supergfxctl` is in the **main repo**, but upstream now calls it deprecated and
-advises against installing it unless you need VFIO or cannot power off the dGPU.
+**GPU profiles and the MUX are asusd's job now, not supergfxctl's.** The OGC
+documentation is explicit that ROGCC's GPU Configuration tab "writes both the
+`dgpu_disable` and `gpu_mux_mode` attributes" — the same two this machine
+exposes:
+
+    /sys/devices/platform/asus-nb-wmi/dgpu_disable = 0    choices [0,(1)]
+    /sys/devices/platform/asus-nb-wmi/gpu_mux_mode = 1    choices [0,(1)]
+
+This box is in Hybrid right now (`dgpu_disable=0`, `gpu_mux_mode=1`); the valid
+pairs are Integrated `(1,1)`, Hybrid `(0,1)`, Ultimate `(0,0)`, and a change
+needs a reboot. The CLI equivalent is `asusctl armoury set dgpu_disable 1`
+(`asusctl armoury list` shows what a given machine supports). asusctl 6.3.9
+"removed supergfxctl completely", upstream abandoned it, and ROGCC runs without
+supergfxd — so the GPU-profile workflow here is **asusd + ROGCC only**.
+
+`supergfxctl` and `supergfxctl-plasmoid` 2.1.1 *are* in the main repo if wanted,
+they are just no longer the tool for this. `cardwire` is the successor (eBPF/LSM,
+dGPU powers down at runtime with no reboot) and is **not** packaged for openSUSE
+— source build, still experimental.
+
 
 Two conflicts to handle that this flake currently has:
 
@@ -412,8 +430,10 @@ Two conflicts to handle that this flake currently has:
   `power-profiles-daemon` or set `change_platform_profile_on_ac: false`,
   `change_platform_profile_on_battery: false`, `platform_profile_linked_epp: false`
   in `/etc/asusd/asusd.ron`.
-- openSUSE may install **`suse-prime`**, which conflicts with `supergfxctl` —
-  remove it before installing supergfxctl.
+- openSUSE may install **`suse-prime`** (0.8.18 is in the repo), which owns the
+  same dGPU/MUX state through a different mechanism (bbswitch + xorg). Remove it
+  — the ASUS openSUSE guide lists that as a required step, and with asusd owning
+  `dgpu_disable`/`gpu_mux_mode` there is nothing left for it to do.
 
 **The de-risking fact: the one thing this flake actually asked asusd for does not
 need asusd.** Measured on this machine:
@@ -447,7 +467,7 @@ exposes most of it as plain sysfs:
 | Platform profile | `/sys/firmware/acpi/platform_profile` (`performance`; choices `quiet balanced performance`) | no |
 | Custom fan curves | `/sys/devices/platform/asus-nb-wmi/hwmon/hwmon9` (`asus_custom_fan_curve`, 8 points per fan) | no, but no UI either |
 | Fan readings / PWM mode | `hwmon8` (`fan1_input`, `fan2_input`, `pwm1_enable`) | no |
-| GPU MUX mode | `/sys/devices/platform/asus-nb-wmi/gpu_mux_mode` (and `supergfxctl`, packaged) | no |
+| GPU MUX + dGPU power | `gpu_mux_mode` and `dgpu_disable` (the two attributes ROGCC writes through asusd) | no, but no GUI either |
 | CPU/APU power limits | `ppt_pl1_spl`, `ppt_pl2_sppt`, `ppt_apu_sppt`, `ppt_fppt` | no |
 | Keyboard backlight brightness | `/sys/class/leds/asus::kbd_backlight` | no |
 | Per-key RGB / Aura modes / AniMatrix | USB-HID, implemented in asusd | **yes** |
