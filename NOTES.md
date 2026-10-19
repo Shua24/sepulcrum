@@ -134,11 +134,11 @@ reason. Do not "simplify" it back to `$TARGET#sepulcrum`.
 
 **The ESP has no label.** `/`, `/nix` and `/home` carry labels (`nixos-root`,
 `nixos-nix`, `nixos-home`) and are whole partitions — there are no btrfs
-subvolumes, the mounts are `subvolid=5, subvol=/`. `/boot` (`/dev/nvme0n1p1`,
+subvolumes, the mounts are `subvolid=5, subvol=/`. `/boot` (`/dev/nvme1n1p1`,
 1G vfat) was unlabelled, so a by-label config could not have mounted it. Label
 it if you want to switch:
 
-    sudo fatlabel /dev/nvme0n1p1 NIXOS-BOOT
+    sudo fatlabel /dev/nvme1n1p1 NIXOS-BOOT
 
 Then edit the four `fileSystems` entries in `hardware-configuration.nix` to
 `/dev/disk/by-label/...`. That is a separate, separately-verifiable change; it

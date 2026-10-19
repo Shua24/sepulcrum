@@ -30,12 +30,17 @@
   #
   # The live layout is btrfs, one filesystem per partition, no subvolumes
   # (mounted at subvolid=5, subvol=/), plus a vfat ESP:
-  #   /      btrfs  label nixos-root  (nvme0n1p2)
-  #   /nix   btrfs  label nixos-nix   (nvme0n1p3)
-  #   /home  btrfs  label nixos-home  (nvme0n1p4)
-  #   /boot  vfat   label NIXOS-BOOT  (nvme0n1p1, 1G)
-  # The three btrfs partitions carry labels; the ESP was labelled later with
-  # fatlabel so that a future by-label switch is a one-line edit per mount.
+  #   /      btrfs  label nixos-root  (nvme1n1p2)
+  #   /nix   btrfs  label nixos-nix   (nvme1n1p3)
+  #   /home  btrfs  label nixos-home  (nvme1n1p4)
+  #   /boot  vfat   no label          (nvme1n1p1, 1G, mounted by UUID CBC4-88B2)
+  # The three btrfs partitions carry labels. The ESP does NOT - it is mounted by
+  # UUID in the generated hardware-configuration.nix. To switch it to a label,
+  # run `fatlabel /dev/nvme1n1p1 NIXOS-BOOT` and then edit that one mount.
+  #
+  # Do not confuse the two NVMe devices: nvme1n1 is this system (all four
+  # partitions above). nvme0n1p1 is a separate 477G disk that holds the WinBoat
+  # Windows VM - relabelling or reformatting it destroys that VM.
 
   zramSwap = {
     enable = true;
